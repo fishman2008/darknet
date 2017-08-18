@@ -139,7 +139,6 @@ struct layer{
     int flatten;
     int spatial;
     int pad;
-    int group;
     int sqrt;
     int flip;
     int index;

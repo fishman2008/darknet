@@ -117,14 +117,14 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
     float *a = l.weights_gpu;
     float *c = l.output_gpu;
 
-    int group_size = l.c / l.group;
+    int group_size = l.c / l.groups;
     int group_step = l.h * l.w * group_size;
-    k = k / l.group;
-    m = m / l.group;
+    k = k / l.groups;
+    m = m / l.groups;
     int i, j;
     for (i = 0; i < l.batch; ++i)
     {
-        for (j = 0; j < l.group; j++)
+        for (j = 0; j < l.groups; j++)
         {
             float *aoffset = a + j * k;
             float *boffset = net.workspace;
@@ -140,10 +140,10 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
     }
 #endif
 
-    cuda_pull_array(l.output_gpu, l.output, l.batch * l.outputs);
-    image im = float_to_image(l.out_w, l.out_h, l.n, l.output);
-    fprintf(stderr, "filter:\n");
-    print_image(im);
+    //cuda_pull_array(l.output_gpu, l.output, l.batch * l.outputs);
+    //image im = float_to_image(l.out_w, l.out_h, l.n, l.output);
+    //fprintf(stderr, "filter:\n");
+    //print_image(im);
     if (l.batch_normalize)
     {
         forward_batchnorm_layer_gpu(l, net);
@@ -270,15 +270,15 @@ void backward_convolutional_layer_gpu(convolutional_layer l, network net)
     int n = l.size * l.size * l.c;
     int k = l.out_w * l.out_h;
 
-    int group_size = l.c / l.group;
+    int group_size = l.c / l.groups;
     int group_step = l.h * l.w * group_size;
-    n = n / l.group;
-    m = m / l.group;
+    n = n / l.groups;
+    m = m / l.groups;
     for (i = 0; i < l.batch; ++i)
     {
         float *input_data = net.input_gpu + i * l.c * l.h * l.w;
         float *deltas = l.delta_gpu + i * l.n * l.out_w * l.out_h;
-        for (j = 0; j < l.group; j++)
+        for (j = 0; j < l.groups; j++)
         {
             float *im = input_data + j * group_step;
             float *aoffset = deltas + j * group_size * k;

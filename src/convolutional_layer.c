@@ -164,7 +164,7 @@ void cudnn_convolutional_setup(layer *l)
 #endif
 #endif
 
-convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int size, int stride, int padding, int group, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam)
+convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int size, int stride, int padding, int groups, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam)
 {
     int i;
     convolutional_layer l = {0};
@@ -180,7 +180,7 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int
     l.stride = stride;
     l.size = size;
     l.pad = padding;
-    l.group = group;
+    l.groups = groups;
     l.batch_normalize = batch_normalize;
 
     l.weights = calloc(c*n*size*size, sizeof(float));
@@ -455,13 +455,13 @@ void forward_convolutional_layer(convolutional_layer l, network net)
     float *a = l.weights;
     float *c = l.output;
 
-    int group_size = l.c / l.group;
+    int group_size = l.c / l.groups;
     int group_step = l.h * l.w * group_size;
-    k = k / l.group;
-    m = m / l.group;
+    k = k / l.groups;
+    m = m / l.groups;
     for (i = 0; i < l.batch; ++i)
     {
-        for (j = 0; j < l.group; j++)
+        for (j = 0; j < l.groups; j++)
         {
             float *aoffset = a + j * k;
             float *boffset = net.workspace;
@@ -476,9 +476,9 @@ void forward_convolutional_layer(convolutional_layer l, network net)
         net.input += l.c * l.h * l.w;
     }
 
-    image im = float_to_image(l.out_w, l.out_h, l.out_c, l.output);    
-    fprintf(stderr, "filter:\n");
-    print_image(im);
+    //image im = float_to_image(l.out_w, l.out_h, l.out_c, l.output);    
+    //fprintf(stderr, "filter:\n");
+    //print_image(im);
 
     if (l.batch_normalize)
     {
@@ -512,15 +512,15 @@ void backward_convolutional_layer(convolutional_layer l, network net)
         backward_bias(l.bias_updates, l.delta, l.batch, l.n, k);
     }
 
-    int group_size = l.c / l.group;
+    int group_size = l.c / l.groups;
     int group_step = l.h * l.w * group_size;
-    n = n / l.group;
-    m = m / l.group;
+    n = n / l.groups;
+    m = m / l.groups;
     for (i = 0; i < l.batch; ++i)
     {
         float *input_data = net.input + i * l.c * l.h * l.w;
         float *deltas = l.delta + i * l.n * l.out_w * l.out_h;
-        for (j = 0; j < l.group; j++)
+        for (j = 0; j < l.groups; j++)
         {
             float *im = input_data + j * group_step;
             float *aoffset = deltas + j * group_size * k;

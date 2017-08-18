@@ -30,6 +30,7 @@
 #include "shortcut_layer.h"
 #include "softmax_layer.h"
 #include "lstm_layer.h"
+#include "shuffle_layer.h"
 #include "utils.h"
 
 typedef struct{
@@ -73,6 +74,7 @@ LAYER_TYPE string_to_layer_type(char * type)
     if (strcmp(type, "[soft]")==0
             || strcmp(type, "[softmax]")==0) return SOFTMAX;
     if (strcmp(type, "[route]")==0) return ROUTE;
+    if (strcmp(type, "[shuffle]")==0) return SHUFFLE;
     return BLANK;
 }
 
@@ -545,6 +547,13 @@ learning_rate_policy get_policy(char *s)
     return CONSTANT;
 }
 
+layer parse_shuffile(list *options, size_params params)
+{
+    int groups = option_find_int(options, "groups", 1);
+    shuffle_layer l = make_shuffle_layer(params.batch, params.h, params.w, params.c, groups);
+    return l;
+}
+
 void parse_net_options(list *options, network *net)
 {
     net->batch = option_find_int(options, "batch",1);
@@ -713,6 +722,9 @@ network parse_network_cfg(char *filename)
             l.output_gpu = net.layers[count-1].output_gpu;
             l.delta_gpu = net.layers[count-1].delta_gpu;
 #endif
+        }else if (lt == SHUFFLE)
+        {
+            l = parse_shuffile(options, params);
         }else{
             fprintf(stderr, "Type not recognized: %s\n", s->type);
         }
