@@ -278,6 +278,7 @@ void backward_convolutional_layer_gpu(convolutional_layer l, network net)
     {
         float *input_data = net.input_gpu + i * l.c * l.h * l.w;
         float *deltas = l.delta_gpu + i * l.n * l.out_w * l.out_h;
+        float *outdeltas = net.delta_gpu + i * l.c * l.w *l.h;
         for (j = 0; j < l.groups; j++)
         {
             float *im = input_data + j * group_step;
@@ -288,23 +289,20 @@ void backward_convolutional_layer_gpu(convolutional_layer l, network net)
             im2col_gpu(im, group_size, l.h, l.w, l.size, l.stride, l.pad, boffset);
             gemm_gpu(0, 1, m, n, k, 1, aoffset, k, boffset, k, 1, coffset, n);
 
-            if (net.delta)
+            if (net.delta_gpu)
             {
+                if(l.binary || l.xnor) swap_binary(&l);
                 aoffset = l.weights_gpu + j * n;
                 boffset = deltas + j * group_size * k;
                 coffset = net.workspace;
 
                 gemm_gpu(1, 0, n, k, m, 1, aoffset, n, boffset, k, 0, coffset, k);
-                col2im_gpu(net.workspace, group_size, l.h, l.w, l.size, l.stride, l.pad, boffset);
+                col2im_gpu(net.workspace, group_size, l.h, l.w, l.size, l.stride, l.pad, outdeltas + j * group_step);
+                if(l.binary || l.xnor) swap_binary(&l);
             }
         }
 
-        if (net.delta && (l.binary || l.xnor))
-        {
-            swap_binary(&l);
-        }
-
-        if (net.delta && l.xnor)
+        if (net.delta_gpu && l.xnor)
         {
             gradient_array_gpu(original_input + i * l.c * l.h * l.w,
                                l.c * l.h * l.w,

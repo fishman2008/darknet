@@ -427,6 +427,7 @@ void backward_bias(float *bias_updates, float *delta, int batch, int n, int size
     int i,b;
     for(b = 0; b < batch; ++b){
         for(i = 0; i < n; ++i){
+            //每一个输出通道的delta之和的累积
             bias_updates[i] += sum_array(delta+size*(i+b*n), size);
         }
     }
@@ -520,6 +521,7 @@ void backward_convolutional_layer(convolutional_layer l, network net)
     {
         float *input_data = net.input + i * l.c * l.h * l.w;
         float *deltas = l.delta + i * l.n * l.out_w * l.out_h;
+        float *outdeltas = net.delta + i * l.c * l.w *l.h;
         for (j = 0; j < l.groups; j++)
         {
             float *im = input_data + j * group_step;
@@ -527,6 +529,7 @@ void backward_convolutional_layer(convolutional_layer l, network net)
             float *boffset = net.workspace;
             float *coffset = l.weight_updates + j * n;
 
+            //得到权重的更新
             im2col_cpu(im, group_size, l.h, l.w, l.size, l.stride, l.pad, boffset);
             gemm(0, 1, m, n, k, 1, aoffset, k, boffset, k, 1, coffset, n);
 
@@ -537,7 +540,7 @@ void backward_convolutional_layer(convolutional_layer l, network net)
                 coffset = net.workspace;
 
                 gemm(1, 0, n, k, m, 1, aoffset, n, boffset, k, 0, coffset, k);
-                col2im_cpu(net.workspace, group_size, l.h, l.w, l.size, l.stride, l.pad, boffset);
+                col2im_cpu(net.workspace, group_size, l.h, l.w, l.size, l.stride, l.pad, outdeltas + j * group_step);
             }
         }
     }
