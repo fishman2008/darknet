@@ -435,10 +435,6 @@ void backward_bias(float *bias_updates, float *delta, int batch, int n, int size
 
 void forward_convolutional_layer(convolutional_layer l, network net)
 {
-    int out_h = l.out_h;
-    int out_w = l.out_w;
-    int i, j;
-
     fill_cpu(l.outputs * l.batch, 0, l.output, 1);
 
     if (l.xnor)
@@ -451,7 +447,7 @@ void forward_convolutional_layer(convolutional_layer l, network net)
 
     int m = l.n;                   // output channel
     int k = l.size * l.size * l.c; // kernel size, input channel
-    int n = out_h * out_w;         // output size
+    int n = l.out_h * l.out_w;     // output size
 
     float *a = l.weights;
     float *c = l.output;
@@ -460,6 +456,7 @@ void forward_convolutional_layer(convolutional_layer l, network net)
     int group_step = l.h * l.w * group_size;
     k = k / l.groups;
     m = m / l.groups;
+    int i, j;
     for (i = 0; i < l.batch; ++i)
     {
         for (j = 0; j < l.groups; j++)
@@ -468,17 +465,16 @@ void forward_convolutional_layer(convolutional_layer l, network net)
             float *boffset = net.workspace;
             float *coffset = c + j * n * group_size;
             float *inputoffset = net.input + group_step * j;
-            im2col_cpu(inputoffset, group_size, l.h, l.w,
-                       l.size, l.stride, l.pad, boffset);
+            im2col_cpu(inputoffset, group_size, l.h, l.w, l.size, l.stride, l.pad, boffset);
             gemm(0, 0, m, n, k, 1, aoffset, k, boffset, n, 1, coffset, n);
         }
 
-        c += out_h * out_w * l.n;
+        c += l.out_h * l.out_w * l.n;
         net.input += l.c * l.h * l.w;
     }
 
-    //image im = float_to_image(l.out_w, l.out_h, l.out_c, l.output);    
-    //fprintf(stderr, "filter:\n");
+    //im = float_to_image(l.out_w, l.out_h, l.out_c, l.output);    
+    //fprintf(stderr, "\nfilter:\n");
     //print_image(im);
 
     if (l.batch_normalize)
@@ -487,10 +483,10 @@ void forward_convolutional_layer(convolutional_layer l, network net)
     }
     else
     {
-        add_bias(l.output, l.biases, l.batch, l.n, out_h * out_w);
+        add_bias(l.output, l.biases, l.batch, l.n, l.out_w * l.out_h);
     }
 
-    activate_array(l.output, m * n * l.batch, l.activation);
+    activate_array(l.output,  l.outputs * l.batch, l.activation);
     if (l.binary || l.xnor)
         swap_binary(&l);
 }

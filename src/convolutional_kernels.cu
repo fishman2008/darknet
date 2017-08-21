@@ -110,6 +110,7 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
                             l.output_gpu);
 
 #else
+
     int m = l.n;                   // output channel
     int k = l.size * l.size * l.c; // kernel size, input channel
     int n = l.out_h * l.out_w;     // output size
@@ -130,8 +131,7 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
             float *boffset = net.workspace;
             float *coffset = c + j * n * group_size;
             float *inputoffset = net.input_gpu + group_step * j;
-            im2col_gpu(inputoffset, group_size, l.h, l.w,
-                       l.size, l.stride, l.pad, boffset);
+            im2col_gpu(inputoffset, group_size, l.h, l.w, l.size, l.stride, l.pad, boffset);
             gemm_gpu(0, 0, m, n, k, 1, aoffset, k, boffset, n, 1, coffset, n);
         }
 
@@ -141,8 +141,8 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
 #endif
 
     //cuda_pull_array(l.output_gpu, l.output, l.batch * l.outputs);
-    //image im = float_to_image(l.out_w, l.out_h, l.n, l.output);
-    //fprintf(stderr, "filter:\n");
+    //im = float_to_image(l.out_w, l.out_h, l.n, l.output);
+    //fprintf(stderr, "\nfilter:\n");
     //print_image(im);
     if (l.batch_normalize)
     {
