@@ -4,8 +4,7 @@
 
 #include <stdio.h>
 
-shuffle_layer make_shuffle_layer(int batch, int h, int w, int c, int groups)
-{
+shuffle_layer make_shuffle_layer(int batch, int h, int w, int c, int groups) {
     fprintf(stderr, "shuffle ");
     shuffle_layer l = {0};
     l.type = SHUFFLE;
@@ -23,8 +22,8 @@ shuffle_layer make_shuffle_layer(int batch, int h, int w, int c, int groups)
     fprintf(stderr, " %d\n", outputs);
     l.outputs = outputs;
     l.inputs = outputs;
-    l.output = calloc(outputs * batch, sizeof(float));
-    l.delta = calloc(outputs * batch, sizeof(float));
+    l.output = calloc(outputs * batch, sizeof (float));
+    l.delta = calloc(outputs * batch, sizeof (float));
 
     l.forward = forward_shuffle_layer;
     l.backward = backward_shuffle_layer;
@@ -38,8 +37,7 @@ shuffle_layer make_shuffle_layer(int batch, int h, int w, int c, int groups)
     return l;
 }
 
-void resize_shuffle_layer(shuffle_layer *l, int w, int h)
-{
+void resize_shuffle_layer(shuffle_layer *l, int w, int h) {
     l->h = h;
     l->w = w;
     l->out_w = h;
@@ -48,8 +46,8 @@ void resize_shuffle_layer(shuffle_layer *l, int w, int h)
     int outputs = l->n * l->out_w * l->out_h;
     l->outputs = outputs;
     l->inputs = l->outputs;
-    l->output = realloc(l->output, l->outputs * l->batch * sizeof(float));
-    l->delta = realloc(l->delta, l->outputs * l->batch * sizeof(float));
+    l->output = realloc(l->output, l->outputs * l->batch * sizeof (float));
+    l->delta = realloc(l->delta, l->outputs * l->batch * sizeof (float));
 
 #ifdef GPU
     cuda_free(l->output_gpu);
@@ -59,13 +57,10 @@ void resize_shuffle_layer(shuffle_layer *l, int w, int h)
 #endif
 }
 
-void shuffle_resize_cpu(float *output, const float *input, int group_row, int group_column, int len)
-{
+void shuffle_resize_cpu(float *output, const float *input, int group_row, int group_column, int len) {
     int i, j;
-    for (i = 0; i < group_row; ++i)
-    {
-        for (j = 0; j < group_column; ++j)
-        {
+    for (i = 0; i < group_row; ++i) {
+        for (j = 0; j < group_column; ++j) {
             const float *p_i = input + (i * group_column + j) * len;
             float *p_o = output + (j * group_row + i) * len;
             copy_cpu(len, p_i, 1, p_o, 1);
@@ -73,8 +68,7 @@ void shuffle_resize_cpu(float *output, const float *input, int group_row, int gr
     }
 }
 
-void forward_shuffle_layer(const shuffle_layer l, network net)
-{
+void forward_shuffle_layer(const shuffle_layer l, network net) {
     int feature_map_size = l.c * l.w * l.h;
     int sp_sz = l.w * l.h;
 
@@ -82,15 +76,13 @@ void forward_shuffle_layer(const shuffle_layer l, network net)
     int group_column = l.c / group_row;
 
     int n;
-    for (n = 0; n < l.batch; n++)
-    {
+    for (n = 0; n < l.batch; n++) {
         shuffle_resize_cpu(l.output + n * feature_map_size,
-                            net.input + n * feature_map_size, group_row, group_column, sp_sz);
+                net.input + n * feature_map_size, group_row, group_column, sp_sz);
     }
 }
 
-void backward_shuffle_layer(const shuffle_layer l, network net)
-{
+void backward_shuffle_layer(const shuffle_layer l, network net) {
     int feature_map_size = l.c * l.w * l.h;
     int sp_sz = l.w * l.h;
 
@@ -98,22 +90,18 @@ void backward_shuffle_layer(const shuffle_layer l, network net)
     int group_row = l.c / group_column;
 
     int n;
-    for (n = 0; n < l.batch; n++)
-    {
+    for (n = 0; n < l.batch; n++) {
         shuffle_resize_cpu(l.delta + n * feature_map_size,
-                            net.input + n * feature_map_size, group_row, group_column, sp_sz);
+                net.input + n * feature_map_size, group_row, group_column, sp_sz);
     }
 }
 
 #ifdef GPU
 
-void shuffle_resize_gpu(float *output, const float *input, int group_row, int group_column, int len)
-{
+void shuffle_resize_gpu(float *output, const float *input, int group_row, int group_column, int len) {
     int i, j;
-    for (i = 0; i < group_row; ++i)
-    {
-        for (j = 0; j < group_column; ++j)
-        {
+    for (i = 0; i < group_row; ++i) {
+        for (j = 0; j < group_column; ++j) {
             const float *p_i = input + (i * group_column + j) * len;
             float *p_o = output + (j * group_row + i) * len;
             copy_gpu(len, p_i, 1, p_o, 1);
@@ -121,8 +109,7 @@ void shuffle_resize_gpu(float *output, const float *input, int group_row, int gr
     }
 }
 
-void forward_shuffle_layer_gpu(const shuffle_layer l, network net)
-{
+void forward_shuffle_layer_gpu(const shuffle_layer l, network net) {
     int feature_map_size = l.c * l.w * l.h;
     int sp_sz = l.w * l.h;
 
@@ -130,15 +117,14 @@ void forward_shuffle_layer_gpu(const shuffle_layer l, network net)
     int group_column = l.c / group_row;
 
     int n;
-    for (n = 0; n < l.batch; n++)
-    {
+    for (n = 0; n < l.batch; n++) {
         shuffle_resize_gpu(l.output_gpu + n * feature_map_size,
-                            net.input_gpu + n * feature_map_size, group_row, group_column, sp_sz);
+                net.input_gpu + n * feature_map_size,
+                group_row, group_column, sp_sz);
     }
 }
 
-void backward_shuffle_layer_gpu(const shuffle_layer l, network net)
-{
+void backward_shuffle_layer_gpu(const shuffle_layer l, network net) {
     int feature_map_size = l.c * l.w * l.h;
     int sp_sz = l.w * l.h;
 
@@ -146,10 +132,9 @@ void backward_shuffle_layer_gpu(const shuffle_layer l, network net)
     int group_row = l.c / group_column;
 
     int n;
-    for (n = 0; n < l.batch; n++)
-    {
+    for (n = 0; n < l.batch; n++) {
         shuffle_resize_gpu(l.delta_gpu + n * feature_map_size,
-                            net.input_gpu + n * feature_map_size, group_row, group_column, sp_sz);
+                net.input_gpu + n * feature_map_size, group_row, group_column, sp_sz);
     }
 }
 #endif

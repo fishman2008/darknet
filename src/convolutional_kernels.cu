@@ -140,10 +140,11 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
     }
 #endif
 
-    //cuda_pull_array(l.output_gpu, l.output, l.batch * l.outputs);
-    //im = float_to_image(l.out_w, l.out_h, l.n, l.output);
-    //fprintf(stderr, "\nfilter:\n");
-    //print_image(im);
+    /*cuda_pull_array(l.output_gpu, l.output, l.batch * l.outputs);
+    image im = float_to_image(l.out_w, l.out_h, l.n, l.output);
+    printf("\nfilter:\n");
+    print_image(im);*/
+    
     if (l.batch_normalize)
     {
         forward_batchnorm_layer_gpu(l, net);
