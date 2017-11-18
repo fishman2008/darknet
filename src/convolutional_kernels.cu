@@ -81,15 +81,15 @@ void forward_convolutional_layer_gpu(convolutional_layer l, network net)
     fill_gpu(l.outputs * l.batch, 0, l.output_gpu, 1);
     if (l.binary)
     {
-        binarize_weights_gpu(l.weights_gpu, l.n, l.c * l.size * l.size, l.binary_weights_gpu);
+        binarize_weights_gpu(l.weights_gpu, l.n, l.c / l.groups * l.size * l.size, l.binary_weights_gpu);
         swap_binary(&l);
     }
 
     if (l.xnor)
     {
-        binarize_weights_gpu(l.weights_gpu, l.n, l.c * l.size * l.size, l.binary_weights_gpu);
+        binarize_weights_gpu(l.weights_gpu, l.n, l.c / l.groups * l.size * l.size, l.binary_weights_gpu);
         swap_binary(&l);
-        binarize_gpu(net.input_gpu, l.c * l.h * l.w * l.batch, l.binary_input_gpu);
+        binarize_gpu(net.input_gpu, l.c / l.groups * l.h * l.w * l.batch, l.binary_input_gpu);
         net.input_gpu = l.binary_input_gpu;
     }
 
@@ -316,9 +316,9 @@ void backward_convolutional_layer_gpu(convolutional_layer l, network net)
 
 void pull_convolutional_layer(convolutional_layer layer)
 {
-    cuda_pull_array(layer.weights_gpu, layer.weights, layer.c * layer.n * layer.size * layer.size);
+    cuda_pull_array(layer.weights_gpu, layer.weights, layer.nweights);
     cuda_pull_array(layer.biases_gpu, layer.biases, layer.n);
-    cuda_pull_array(layer.weight_updates_gpu, layer.weight_updates, layer.c * layer.n * layer.size * layer.size);
+    cuda_pull_array(layer.weight_updates_gpu, layer.weight_updates, layer.nweights);
     cuda_pull_array(layer.bias_updates_gpu, layer.bias_updates, layer.n);
     if (layer.batch_normalize)
     {
@@ -330,9 +330,9 @@ void pull_convolutional_layer(convolutional_layer layer)
 
 void push_convolutional_layer(convolutional_layer layer)
 {
-    cuda_push_array(layer.weights_gpu, layer.weights, layer.c * layer.n * layer.size * layer.size);
+    cuda_push_array(layer.weights_gpu, layer.weights, layer.nweights);
     cuda_push_array(layer.biases_gpu, layer.biases, layer.n);
-    cuda_push_array(layer.weight_updates_gpu, layer.weight_updates, layer.c * layer.n * layer.size * layer.size);
+    cuda_push_array(layer.weight_updates_gpu, layer.weight_updates, layer.nweights);
     cuda_push_array(layer.bias_updates_gpu, layer.bias_updates, layer.n);
     if (layer.batch_normalize)
     {
@@ -349,7 +349,7 @@ void update_convolutional_layer_gpu(layer l, update_args a)
     float decay = a.decay;
     int batch = a.batch;
 
-    int size = l.size * l.size * l.c * l.n;
+    int size = l.nweights;
 
     if (a.adam)
     {

@@ -12,8 +12,8 @@
 extern "C" {
 #endif
 
-    void test_1x1_convolutional_layer();
-    void test_depthwise_convolutional_layer();
+    void test_1x1_convolutional_layer(pthreadpool_t threadpool);
+    void test_depthwise_convolutional_layer(pthreadpool_t threadpool);
 #ifdef __cplusplus
 }
 #endif

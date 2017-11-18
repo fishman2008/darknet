@@ -2,9 +2,8 @@
 #include <nnpack.h>
 #include "../src/convolutional_layer.h"
 #include "conv_test.h"
-#include "cuda.h"
 
-void test_1x1_convolutional_layer() {
+void test_1x1_convolutional_layer(pthreadpool_t threadpool) {
     convolutional_layer l = make_convolutional_layer(1, 5, 5, 3, 1, 1, 1, 0, 1, LEAKY, 0, 0, 0, 0);
 
     float data[] = {
@@ -35,8 +34,12 @@ void test_1x1_convolutional_layer() {
     net.input = data;
 
     {
-        memset(l.output, 0, sizeof (float) * l.out_h * l.out_w * l.out_c);
-        //forward_convolutional_layer_gpu(l, net);
+        make_border_data(net.workspace, net.input, l.batch, l.pad, l.w, l.h, l.c);
+        struct conv_params params = {net.workspace, l.output, &l};
+        pthreadpool_compute_2d(0,
+                (pthreadpool_function_2d_t) conv1x1_s1_cpu,
+                &params, l.batch, l.out_c);
+
         int h = l.out_h;
         int w = l.out_w;
         int c = l.n;
@@ -51,9 +54,59 @@ void test_1x1_convolutional_layer() {
         fflush(stderr);
     }
 
+    {
+        memset(l.output, 0, sizeof (float) * l.out_h * l.out_w * l.out_c);
+        struct nnp_size input_size = {l.w, l.h};
+        struct nnp_padding input_padding = {l.pad, l.pad, l.pad, l.pad};
+        struct nnp_size kernel_size = {l.size, l.size};
+        struct nnp_size stride = {l.stride, l.stride};
+        int j;
+
+        int group_in_ch = l.c / l.groups;
+        int group_out_ch = l.n / l.groups;
+        int group_ksize = group_in_ch * l.size * l.size;
+        int group_in_step = l.h * l.w * group_in_ch;
+        int group_out_step = l.out_w * l.out_h * group_out_ch;
+
+        for (j = 0; j < l.groups; j++) {
+            nnp_convolution_inference(
+                    nnp_convolution_algorithm_implicit_gemm,
+                    nnp_convolution_transform_strategy_tuple_based,
+                    group_in_ch,
+                    group_out_ch,
+                    input_size,
+                    input_padding,
+                    kernel_size,
+                    stride,
+                    net.input + j * group_in_step,
+                    l.weights + j * group_ksize,
+                    NULL,
+                    l.output + j * group_out_step,
+                    NULL,
+                    NULL,
+                    nnp_activation_identity,
+                    NULL,
+                    threadpool,
+                    NULL);
+        }
+
+        int h = l.out_h;
+        int w = l.out_w;
+        int c = l.n;
+
+        image iw = float_to_image(l.size, l.size, l.n, l.weights);
+        printf("weihts:\n");
+        print_image(iw);
+
+        image im = float_to_image(w, h, c, l.output);
+        printf("nnpack filter:\n");
+        print_image(im);
+        fflush(stderr);
+    }
 }
 
-void test_depthwise_convolutional_layer() {
+
+void test_depthwise_convolutional_layer(pthreadpool_t threadpool) {
     convolutional_layer l = make_convolutional_layer(1, 5, 5, 3, 3, 3, 1, 1, 3, LEAKY, 0, 0, 0, 0);
 
     float data[] = {1, 1, 1, 1, 1,
@@ -81,11 +134,32 @@ void test_depthwise_convolutional_layer() {
 
     net.input = data;
 
+    {
+        memset(l.output, 0, sizeof (float) * l.out_h * l.out_w * l.out_c);
+        make_border_data(net.workspace, net.input, l.batch, l.pad, l.w, l.h, l.c);
+        struct conv_params params = {net.workspace, l.output, &l};
+        pthreadpool_compute_2d(0,
+                (pthreadpool_function_2d_t) dwconv3x3_s1_neon,
+                &params, l.batch, l.out_c);
+
+        int h = l.out_h;
+        int w = l.out_w;
+        int c = l.n;
+
+        image iw = float_to_image(l.size, l.size, l.n, l.weights);
+        printf("weihts:\n");
+        print_image(iw);
+
+        image im = float_to_image(w, h, c, l.output);
+        printf("dw_3x3 filter:\n");
+        print_image(im);
+        fflush(stderr);
+    }
 
     {
 
         memset(l.output, 0, sizeof (float) * l.out_h * l.out_w * l.out_c);
-        //forward_convolutional_layer_gpu(l, net);
+        forward_convolutional_layer(l, net);
         int h = l.out_h;
         int w = l.out_w;
         int c = l.n;
@@ -99,110 +173,54 @@ void test_depthwise_convolutional_layer() {
         print_image(im);
         fflush(stderr);
     }
-}
 
-#define checkCUDNN(status) { \
-    if (status != CUDNN_STATUS_SUCCESS) { \
-      printf("CUDNN failure\nError: %s", cudnnGetErrorString(status)); \
-    }                                                                  \
-}
+    {
+        memset(l.output, 0, sizeof (float) * l.out_h * l.out_w * l.out_c);
+        struct nnp_size input_size = {l.w, l.h};
+        struct nnp_padding input_padding = {l.pad, l.pad, l.pad, l.pad};
+        struct nnp_size kernel_size = {l.size, l.size};
+        struct nnp_size stride = {l.stride, l.stride};
+        int j;
 
-void test_cudnn() {
-    cudnnHandle_t cudnnHandle;
-    checkCUDNN( cudnnCreate(&cudnnHandle) );
-    cudnnTensorDescriptor_t srcTensorDesc, dstTensorDesc;
-    cudnnTensorDescriptor_t dsrcTensorDesc, ddstTensorDesc;
-    cudnnTensorDescriptor_t normTensorDesc;
-    cudnnFilterDescriptor_t weightDesc;
-    cudnnFilterDescriptor_t dweightDesc;
-    cudnnConvolutionDescriptor_t convDesc;
-    cudnnConvolutionFwdAlgo_t fw_algo;
-    cudnnConvolutionBwdDataAlgo_t bd_algo;
-    cudnnConvolutionBwdFilterAlgo_t bf_algo;
+        int group_in_ch = l.c / l.groups;
+        int group_out_ch = l.n / l.groups;
+        int group_ksize = group_in_ch * l.size * l.size;
+        int group_in_step = l.h * l.w * group_in_ch;
+        int group_out_step = l.out_w * l.out_h * group_out_ch;
 
-    cudnnStatus_t status;
-    status = cudnnCreateTensorDescriptor(&normTensorDesc);
-    checkCUDNN(status);
-    status = cudnnCreateTensorDescriptor(&srcTensorDesc);
-    checkCUDNN(status);
-    status = cudnnCreateTensorDescriptor(&dstTensorDesc);
-    checkCUDNN(status);
-    status = cudnnCreateFilterDescriptor(&weightDesc);
-    checkCUDNN(status);
-    status = cudnnCreateTensorDescriptor(&dsrcTensorDesc);
-    checkCUDNN(status);
-    status = cudnnCreateTensorDescriptor(&ddstTensorDesc);
-    checkCUDNN(status);
-    status = cudnnCreateFilterDescriptor(&dweightDesc);
-    checkCUDNN(status);
-    status = cudnnCreateConvolutionDescriptor(&convDesc);
-    checkCUDNN(status);
+        for (j = 0; j < l.groups; j++) {
+            nnp_convolution_inference(
+                    nnp_convolution_algorithm_implicit_gemm,
+                    nnp_convolution_transform_strategy_tuple_based,
+                    group_in_ch,
+                    group_out_ch,
+                    input_size,
+                    input_padding,
+                    kernel_size,
+                    stride,
+                    net.input + j * group_in_step,
+                    l.weights + j * group_ksize,
+                    NULL,
+                    l.output + j * group_out_step,
+                    NULL,
+                    NULL,
+                    nnp_activation_identity,
+                    NULL,
+                    threadpool,
+                    NULL);
+        }
 
-    int batch = 1;
-    int c = 3, h = 416, w = 416;
-    int out_c = 16, out_h = 416, out_w = 416;
-    int n = 16;
-    int size = 3;
-    int pad = 1;
-    int stride = 1;
-    int groups = 1;
+        int h = l.out_h;
+        int w = l.out_w;
+        int c = l.n;
 
-    status = cudnnSetTensor4dDescriptor(dsrcTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch, c, h, w);
-    checkCUDNN(status);
-    status = cudnnSetTensor4dDescriptor(ddstTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch, out_c, out_h, out_w);
-    checkCUDNN(status);
-    status = cudnnSetFilter4dDescriptor(dweightDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, n, c, size, size);
-    checkCUDNN(status);
+        image iw = float_to_image(l.size, l.size, l.n, l.weights);
+        printf("weihts:\n");
+        print_image(iw);
 
-    status = cudnnSetTensor4dDescriptor(srcTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch, c, h, w);
-    checkCUDNN(status);
-    status = cudnnSetTensor4dDescriptor(dstTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, batch, out_c, out_h, out_w);
-    checkCUDNN(status);
-    status = cudnnSetTensor4dDescriptor(normTensorDesc, CUDNN_TENSOR_NCHW, CUDNN_DATA_FLOAT, 1, out_c, 1, 1);
-    checkCUDNN(status);
-    status = cudnnSetFilter4dDescriptor(weightDesc, CUDNN_DATA_FLOAT, CUDNN_TENSOR_NCHW, n, c, size, size); 
-    checkCUDNN(status);
-    status = cudnnSetConvolution2dDescriptor(convDesc, pad, pad, stride, stride, 1, 1, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT);
-    checkCUDNN(status);
-
-    status = cudnnSetConvolution2dDescriptor(convDesc, pad, pad, stride, stride, 1, 1, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT);
-    checkCUDNN(status);
-    status = cudnnSetConvolutionGroupCount(convDesc, groups);
-    checkCUDNN(status);
-    printf("\ncudnn handle:%d\n", cudnn_handle());
-
-    status = cudnnGetConvolutionForwardAlgorithm(cudnnHandle,
-            srcTensorDesc,
-            weightDesc,
-            convDesc,
-            dstTensorDesc,
-            CUDNN_CONVOLUTION_FWD_PREFER_FASTEST,
-            CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT,
-            &fw_algo);
-    checkCUDNN(status);
-
-    status = cudnnGetConvolutionBackwardDataAlgorithm(cudnnHandle,
-            weightDesc,
-            ddstTensorDesc,
-            convDesc,
-            dsrcTensorDesc,
-            CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST,
-            0,
-            &bd_algo);
-    checkCUDNN(status);
-    status = cudnnGetConvolutionBackwardFilterAlgorithm(cudnnHandle,
-            srcTensorDesc,
-            ddstTensorDesc,
-            convDesc,
-            dweightDesc,
-            CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST,
-            0,
-            &bf_algo);
-    checkCUDNN(status);
-}
-
-int main() {
-    checkCUDNN(cudaSetDevice(0));
-    test_cudnn();
-    checkCUDNN(cudaDeviceReset());
+        image im = float_to_image(w, h, c, l.output);
+        printf("nnpack filter:\n");
+        print_image(im);
+        fflush(stderr);
+    }
 }
