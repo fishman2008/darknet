@@ -27,6 +27,9 @@ void cudnn_convolutional_setup(layer *l);
 
 convolutional_layer make_convolutional_layer(int batch, int h, int w, int c, int n, int size, int stride, int padding, int groups, ACTIVATION activation, int batch_normalize, int binary, int xnor, int adam);
 void resize_convolutional_layer(convolutional_layer *layer, int w, int h);
+#ifdef NNPACK
+void forward_convolutional_layer_nnpack(const convolutional_layer layer, network net);
+#endif
 void forward_convolutional_layer(const convolutional_layer layer, network net);
 void update_convolutional_layer(convolutional_layer layer, update_args a);
 image *visualize_convolutional_layer(convolutional_layer layer, char *window, image *prev_weights);

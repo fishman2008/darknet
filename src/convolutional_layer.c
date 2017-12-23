@@ -215,7 +215,12 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c,
   l.output = calloc(l.batch * l.outputs, sizeof(float));
   l.delta = calloc(l.batch * l.outputs, sizeof(float));
 
+#ifdef NNPACK
+  l.forward = forward_convolutional_layer_nnpack;
+#else
   l.forward = forward_convolutional_layer;
+#endif
+
   l.backward = backward_convolutional_layer;
   l.update = update_convolutional_layer;
 
@@ -245,6 +250,9 @@ convolutional_layer make_convolutional_layer(int batch, int h, int w, int c,
 
     l.rolling_mean = calloc(n, sizeof(float));
     l.rolling_variance = calloc(n, sizeof(float));
+    l.expand_a = calloc(n, sizeof(float));
+    l.expand_b = calloc(n, sizeof(float));
+
     l.x = calloc(l.batch * l.outputs, sizeof(float));
     l.x_norm = calloc(l.batch * l.outputs, sizeof(float));
   }
@@ -426,11 +434,55 @@ void backward_bias(float *bias_updates, float *delta, int batch, int n,
   }
 }
 
+#ifdef NNPACK
+
+#include "neon/conv_neon.h"
+
+void forward_convolutional_layer_nnpack(convolutional_layer l, network net) {
+  TIME_BEGIN(forward_convolutional_layer_nnpack);
+  struct conv_params params = {
+      net.input, l.output, l.weights, net.workspace, l.workspace_size,
+      l.size,    l.pad,    l.stride,  l.groups,      l.w,
+      l.h,       l.c,      l.out_w,   l.out_h,       l.out_c};
+  conv_cpu_inference(net.threadpool, &params, net.batch, l.out_c);
+  // image im = float_to_image(l.w, l.h, l.c, net.input);
+  // printf("\nfilter_before:\n");
+  // print_image(im);
+
+  // im = float_to_image(l.out_w, l.out_h, l.out_c, l.output);
+  // printf("\nfilter:\n");
+  // print_image(im);
+
+  if (l.batch_normalize) {
+    TIME_BEGIN(normalize_active_cpu_thread);
+    struct normalize_params params = {l.output, l.expand_a, l.expand_b,
+                                      l.out_h * l.out_w, l.activation};
+    pthreadpool_compute_2d(
+        net.threadpool, (pthreadpool_function_2d_t)normalize_active_cpu_thread,
+        &params, l.batch, l.out_c);
+    TIME_END(normalize_active_cpu_thread);
+  } else {
+    TIME_BEGIN(convolutional_activate_array_thread);
+    int out_h = convolutional_out_height(l);
+    int out_w = convolutional_out_width(l);
+    int n = out_h * out_w;
+    add_bias(l.output, l.biases, l.batch, l.n, out_h * out_w);
+    activate_array_thread(l.output, l.n, n, l.activation, net.threadpool);
+    TIME_END(convolutional_activate_array_thread);
+  }
+
+  if (l.binary || l.xnor)
+    swap_binary(&l);
+  TIME_END(forward_convolutional_layer_nnpack);
+}
+#endif
+
 void forward_convolutional_layer(convolutional_layer l, network net) {
   fill_cpu(l.outputs * l.batch, 0, l.output, 1);
 
   if (l.xnor) {
-    binarize_weights(l.weights, l.n, l.c / l.groups * l.size * l.size, l.binary_weights);
+    binarize_weights(l.weights, l.n, l.c / l.groups * l.size * l.size,
+                     l.binary_weights);
     swap_binary(&l);
     binarize_cpu(net.input, l.c * l.h * l.w * l.batch, l.binary_input);
     net.input = l.binary_input;

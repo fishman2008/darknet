@@ -1,11 +1,11 @@
-GPU=1
-CUDNN=1
+GPU=0
+CUDNN=0
+NNPACK=1
 OPENCV=0
 OPENMP=1
 DEBUG=0
 
-ARCH= -gencode arch=compute_20,code=[sm_20,sm_21] \
-      -gencode arch=compute_30,code=sm_30 \
+ARCH= -gencode arch=compute_30,code=sm_30 \
       -gencode arch=compute_35,code=sm_35 \
       -gencode arch=compute_50,code=[sm_50,compute_50] \
       -gencode arch=compute_52,code=[sm_52,compute_52]
@@ -13,7 +13,7 @@ ARCH= -gencode arch=compute_20,code=[sm_20,sm_21] \
 # This is what I use, uncomment if you know your arch and want to specify
 # ARCH= -gencode arch=compute_52,code=compute_52
 
-VPATH=./src/:./examples
+VPATH=./src/:./examples:./src/simd:./src/imgproc:./src/object_detect
 SLIB=libdarknet.so
 ALIB=libdarknet.a
 EXEC=darknet
@@ -43,6 +43,12 @@ COMMON+= -DOPENCV
 CFLAGS+= -DOPENCV
 LDFLAGS+= `pkg-config --libs opencv` 
 COMMON+= `pkg-config --cflags opencv` 
+endif
+
+ifeq ($(NNPACK), 1)
+COMMON+= -DNNPACK
+CFLAGS+= -DNNPACK
+LDFLAGS+= -lnnpack -lpthreadpool
 endif
 
 ifeq ($(GPU), 1) 
@@ -97,7 +103,19 @@ region_layer.o \
 reorg_layer.o \
 tree.o \
 lstm_layer.o \
-shuffle_layer.o
+shuffle_layer.o \
+conv_neon.o \
+dwconv3x3_s1_cpu.o \
+dwconv3x3_s1_workspace.o \
+conv3x3_s1_cpu.o \
+conv1x1_s1_cpu.o \
+maxpool_neon.o \
+imgproc.o\
+container_linked_list.o\
+detect_object.o\
+tools.o
+
+
 EXECOBJA=captcha.o \
 lsd.o \
 super.o \

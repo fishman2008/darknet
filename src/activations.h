@@ -11,6 +11,11 @@ float activate(float x, ACTIVATION a);
 float gradient(float x, ACTIVATION a);
 void gradient_array(const float *x, const int n, const ACTIVATION a, float *delta);
 void activate_array(float *x, const int n, const ACTIVATION a);
+
+#ifdef NNPACK
+void activate_array_thread(float *x, const int c, const int n, const ACTIVATION a, pthreadpool_t threadpool);
+#endif
+
 #ifdef GPU
 void activate_array_gpu(float *x, int n, ACTIVATION a);
 void gradient_array_gpu(float *x, int n, ACTIVATION a, float *delta);

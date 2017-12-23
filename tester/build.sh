@@ -1,1 +1,1 @@
-gcc   imgproc.c  ../libdarknet.a  -I../include -I../  -lrt -lm -pthread  -Ldeps  ../libpthreadpool.a  -g  -gstabs+ -o image_test
+gcc conv_test.c  -I ../include/ -I ../src/   ../libdarknet.a   -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas -lcurand -lcudnn -lpthread  -lm  -fopenmp -g

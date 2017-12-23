@@ -1,0 +1,28 @@
+{
+    "files.associations": {
+        "*.cl": "c",
+        "*.cu": "c",
+        "array": "c",
+        "bitset": "c",
+        "deque": "c",
+        "initializer_list": "c",
+        "list": "c",
+        "queue": "c",
+        "random": "c",
+        "regex": "c",
+        "stack": "c",
+        "type_traits": "c",
+        "valarray": "c",
+        "vector": "c",
+        "xhash": "c",
+        "xstring": "c",
+        "xtree": "c",
+        "filesystem": "c",
+        "functional": "cpp",
+        "chrono": "c",
+        "cstdlib": "c",
+        "xcomplex": "c",
+        "xlocale": "c",
+        "variant": "c"
+    }
+}
