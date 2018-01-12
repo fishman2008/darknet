@@ -549,11 +549,15 @@ void validate_detector_recall(char *cfgfile, char *weightfile) {
     load_weights(&net, weightfile);
   }
   set_batch_network(&net, 1);
+#ifdef NNPACK
+  nnp_initialize();
+  net.threadpool = pthreadpool_create(4);
+#endif
   fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n",
           net.learning_rate, net.momentum, net.decay);
   srand(time(0));
 
-  list *plist = get_paths("data/coco_val_5k.list");
+  list *plist = get_paths("/ssd/vehicle_persion/test.txt");
   char **paths = (char **)list_to_array(plist);
 
   layer l = net.layers[net.n - 1];
@@ -568,7 +572,7 @@ void validate_detector_recall(char *cfgfile, char *weightfile) {
   int m = plist->size;
   int i = 0;
 
-  float thresh = .001;
+  float thresh = .3;
   float iou_thresh = .5;
   float nms = .4;
 
@@ -624,6 +628,11 @@ void validate_detector_recall(char *cfgfile, char *weightfile) {
     free_image(orig);
     free_image(sized);
   }
+
+#ifdef NNPACK
+  pthreadpool_destroy(net.threadpool);
+  nnp_deinitialize();
+#endif
 }
 
 void test_detector(char *datacfg, char *cfgfile, char *weightfile,
@@ -648,7 +657,7 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile,
 
 #ifdef NNPACK
   nnp_initialize();
-  net.threadpool = 0;
+  net.threadpool = pthreadpool_create(4);
 #endif
 
   while (1) {
