@@ -732,6 +732,80 @@ void test_detector(char *datacfg, char *cfgfile, char *weightfile,
 #endif
 }
 
+void test_detector2(char *datacfg, char *cfgfile, char *weightfile,
+                    char *outdir, float thresh, float hier_thresh) {
+  list *options = read_data_cfg(datacfg);
+  char *name_list = option_find_str(options, "names", "data/names.list");
+  char **names = get_labels(name_list);
+  list *plist = get_paths("/ssd/vehicle_persion/test.txt");
+  char **paths = (char **)list_to_array(plist);
+
+  image **alphabet = load_alphabet();
+  network net = parse_network_cfg(cfgfile);
+  load_weights(&net, weightfile);
+  set_batch_network(&net, 1);
+  srand(2222222);
+
+  double time;
+  int j;
+  float nms = .4;
+
+#ifdef NNPACK
+  nnp_initialize();
+  net.threadpool = pthreadpool_create(4);
+#endif
+
+  int m = plist->size;
+  int i = 0;
+
+  for (i = 0; i < m; ++i) {
+    char *path = paths[i];
+    char outpath[256] = {0};
+    strncpy(outpath, outdir, 256);
+    char *file_start = rindex(path, '/') + 1;
+    char *file_end = rindex(path, '.');
+    strncat(outpath, file_start, file_end - file_start + 1);
+
+    image im = load_image_color(path, 0, 0);
+    image sized = letterbox_image(im, net.w, net.h);
+    layer l = net.layers[net.n - 1];
+
+    box *boxes = calloc(l.w * l.h * l.n, sizeof(box));
+    float **probs = calloc(l.w * l.h * l.n, sizeof(float *));
+    for (j = 0; j < l.w * l.h * l.n; ++j)
+      probs[j] = calloc(l.classes + 1, sizeof(float *));
+    float **masks = 0;
+    if (l.coords > 4) {
+      masks = calloc(l.w * l.h * l.n, sizeof(float *));
+      for (j = 0; j < l.w * l.h * l.n; ++j)
+        masks[j] = calloc(l.coords - 4, sizeof(float *));
+    }
+
+    float *X = sized.data;
+    time = what_time_is_it_now();
+    network_predict(net, X);
+    printf("%s: Predicted in %f seconds.\n", path,
+           what_time_is_it_now() - time);
+    get_region_boxes(l, im.w, im.h, net.w, net.h, thresh, probs, boxes, masks,
+                     0, 0, hier_thresh, 1);
+    if (nms)
+      do_nms_obj(boxes, probs, l.w * l.h * l.n, l.classes, nms);
+    draw_detections(im, l.w * l.h * l.n, thresh, boxes, probs, masks, names,
+                    alphabet, l.classes);
+    save_image(im, outpath);
+
+    free_image(im);
+    free_image(sized);
+    free(boxes);
+    free_ptrs((void **)probs, l.w * l.h * l.n);
+  }
+
+#ifdef NNPACK
+  pthreadpool_destroy(net.threadpool);
+  nnp_deinitialize();
+#endif
+}
+
 void run_detector(int argc, char **argv) {
   char *prefix = find_char_arg(argc, argv, "-prefix", 0);
   float thresh = find_float_arg(argc, argv, "-thresh", .24);
@@ -781,8 +855,9 @@ void run_detector(int argc, char **argv) {
   char *weights = (argc > 5) ? argv[5] : 0;
   char *filename = (argc > 6) ? argv[6] : 0;
   if (0 == strcmp(argv[2], "test"))
-    test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, outfile,
-                  fullscreen);
+    test_detector(datacfg, cfg, weights, filename, thresh, hier_thresh, outfile, fullscreen);
+  else if (0 == strcmp(argv[2], "test2"))
+    test_detector2(datacfg, cfg, weights,outfile, thresh, hier_thresh);
   else if (0 == strcmp(argv[2], "train"))
     train_detector(datacfg, cfg, weights, gpus, ngpus, clear);
   else if (0 == strcmp(argv[2], "valid"))

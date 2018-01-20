@@ -300,6 +300,7 @@ bool_t image_data_from_rgb_resize(struct image_t *img,
   float_t *dst2 = (float_t *)(dst + 2 * resize->w * resize->h);
   short *ibeta = resize->ibeta;
   const unsigned char *orign_data = (const unsigned char *)data;
+  printf("%d", *(int*)data);
   int dy;
   for (dy = 0; dy < resize->h; dy++) {
     int sy = resize->yofs[dy];
@@ -324,6 +325,7 @@ bool_t image_data_from_rgb_resize(struct image_t *img,
         rows1p[0] = (S1p[0] * a0 + S1p[3] * a1) >> 4;
         rows1p[1] = (S1p[1] * a0 + S1p[4] * a1) >> 4;
         rows1p[2] = (S1p[2] * a0 + S1p[5] * a1) >> 4;
+
 
         ialphap += 2;
         rows1p += 3;

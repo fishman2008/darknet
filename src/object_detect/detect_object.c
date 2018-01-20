@@ -23,6 +23,10 @@ object_box create_object_box() {
   box.y = 0;
   box.prob = 0;
   box.classid = -1;
+  box.anchor_x = -1;
+  box.anchor_y = -1;
+  box.anchor_n = -1;
+  return box;
 }
 
 float box_overlap(float x1, float w1, float x2, float w2) {
@@ -107,9 +111,10 @@ object_box_node *create_object_box_node(object_box value) {
 void print_object_box(linked_node *node, void *args) {
   object_box_node *box = (object_box_node *)node;
   if (NULL != box)
-    printf("object_box: x %f y %f w %f h %f prob: %f classid ：%d \n",
-           box->box.x, box->box.y, box->box.w, box->box.h, box->box.prob,
-           box->box.classid);
+    printf("object_box: p_pos: %d %d %d pos: x %f y %f w %f h %f prob: %f "
+           "classid ：%d \n",
+           box->box.anchor_y, box->box.anchor_x, box->box.anchor_n, box->box.x,
+           box->box.y, box->box.w, box->box.h, box->box.prob, box->box.classid);
 }
 
 /**
@@ -272,6 +277,9 @@ void parse_object_boxs(layer l, correct_param param, float thresh, float nms,
                                       row, l.w, l.h, l.w * l.h);
       box.prob = 0;
       box.classid = -1;
+      box.anchor_x = col;
+      box.anchor_y = row;
+      box.anchor_n = n;
       /**
        * 得到最大概率及类型
        */
@@ -289,6 +297,8 @@ void parse_object_boxs(layer l, correct_param param, float thresh, float nms,
        * @brief  有序插入链表中
        */
       if (box.prob > thresh) {
+        // printf("\nbox pos: %d %d n:%d box %f %f %f %f prob: %f\n", row, col, n,
+        //        box.x, box.y, box.w, box.h, box.prob);
         box = object_box_correct(param, box);
         object_box_node *node = create_object_box_node(box);
         linked_list_insert_sort(link_list, (linked_node *)node);
@@ -302,9 +312,9 @@ void parse_object_boxs(layer l, correct_param param, float thresh, float nms,
    */
   // printf("nms before:\n");
   // linked_list_for_each_forword(link_list, print_object_box, NULL);
-  TIME_BEGIN(object_boxs_nms);
+  // TIME_BEGIN(object_boxs_nms);
   object_boxs_nms(link_list, nms);
-  TIME_END(object_boxs_nms);
+  // TIME_END(object_boxs_nms);
   // printf("nms back:\n");
   // linked_list_for_each_forword(link_list, print_object_box, NULL);
 }

@@ -48,6 +48,10 @@ typedef struct {
    * 目标类别
    */
   int classid;
+
+  int anchor_x;
+  int anchor_y;
+  int anchor_n;
 } object_box;
 
 /**

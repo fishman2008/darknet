@@ -485,6 +485,11 @@ void get_region_boxes(layer l, int w, int h, int netw, int neth, float thresh,
            */
         }
         probs[index][l.classes] = max;
+        /*if (max > thresh) {
+          printf("\nbox anchor: %d %d n:%d box %f %f %f %f prob: %f\n", row, col,
+                 n, boxes[index].x, boxes[index].y, boxes[index].w,
+                 boxes[index].h, max);
+        }*/
       }
       if (only_objectness) {
         probs[index][0] = scale;

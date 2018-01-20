@@ -2,8 +2,8 @@ GPU=0
 CUDNN=0
 NNPACK=1
 OPENCV=0
-OPENMP=1
-DEBUG=0
+OPENMP=0
+DEBUG=1
 
 ARCH= -gencode arch=compute_30,code=sm_30 \
       -gencode arch=compute_35,code=sm_35 \
